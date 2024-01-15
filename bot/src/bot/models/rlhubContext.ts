@@ -16,7 +16,9 @@ interface rlhubWizardSession extends Scenes.WizardSessionData {
     link: any,
     russian_dict_word: string,
     buryat_dict_word: string,
-    moderation_vocabular_active: ObjectId | undefined
+    moderation_vocabular_active: ObjectId | undefined,
+    ref: string,
+    userId: ObjectId
 }
 
 interface rlhubSession extends Scenes.WizardSession<rlhubWizardSession> {

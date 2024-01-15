@@ -1,370 +1,234 @@
 import { Composer, Scenes } from "telegraf";
 import { ExtraEditMessageText } from "telegraf/typings/telegram-types";
-import { ISentence, Sentence } from "../../models/ISentence";
-import { IUser, User } from "../../models/IUser";
 import rlhubContext from "../models/rlhubContext";
-
+import { IUser, User } from "../../models/IUser";
+import { OpenAI } from "openai";
+import { bot } from "../..";
+const openai = new OpenAI({ apiKey: process.env.openai, });
 const handler = new Composer<rlhubContext>();
-const home = new Scenes.WizardScene("home", handler, async (ctx: rlhubContext) => await add_sentences_handler(ctx));
+const home = new Scenes.WizardScene("home", handler);
 
-export async function greeting (ctx: rlhubContext, reply?: boolean) {
+export async function greeting(ctx: rlhubContext, reply?: boolean) {
 
-    let user: IUser | null = await User.findOne({ id: ctx.from?.id })
-
-    if (user) {
-
-        if (user.interface_language) {
-
-            ctx.scene.session.interface_ln = user.interface_language
-
-        } else {
-            
-            ctx.scene.session.interface_ln = 'russian'
-
-        }
-
-    }
-
-    let keyboard_translates: any = {
-        learns: {
-            russian: 'Самоучитель',
-            english: 'Learns',
-            buryat: 'Заабари'
-        },
-        dictionary: {
-            russian: 'Словарь',
-            english: 'Dictionary',
-            buryat: 'Толи'
-        },
-        sentences: {
-            russian: 'Предложения',
-            english: 'Sentences',
-            buryat: 'Мэдуулэлнуд'
-        },
-        translator: {
-            russian: 'Переводчик',
-            english: 'Translator',
-            buryat: 'Оршуулгари'
-        },
-        moderation: {
-            russian: 'Модерация',
-            english: 'Moderation',
-            buryat: 'Зохисуулал'
-        },
-        dashboard: {
-            russian: 'Личный кабинет',
-            english: 'Dashboard',
-            buryat: 'Оорын таhaг'
-        }
-    }
+    const message: string = `Я таролог, маг и предсказатель. Я использую таро-карты, чтобы предсказывать будущее и помочь людям в их жизни. Как я могу помочь?`
 
     const extra: ExtraEditMessageText = {
         parse_mode: 'HTML',
         reply_markup: {
             inline_keyboard: [
-                [
-                    { text: keyboard_translates.learns[ctx.scene.session.interface_ln], callback_data: "study" },
-                    { text: keyboard_translates.dictionary[ctx.scene.session.interface_ln], callback_data: "vocabular" }
-                ],
-                [{ text: keyboard_translates.sentences[ctx.scene.session.interface_ln], callback_data: 'sentences' }],
-                [{ text: keyboard_translates.translator[ctx.scene.session.interface_ln], callback_data: 'translater' }],
-                [{ text: keyboard_translates.moderation[ctx.scene.session.interface_ln], callback_data: 'moderation' }],
-                [{ text: "🔓 Chat GPT", callback_data: "chatgpt" }],
-                // [{ text: "📈 Общая статистика", callback_data: "table" }],
-                [{ text: keyboard_translates.dashboard[ctx.scene.session.interface_ln], callback_data: "dashboard" }],
+                [{ text: 'Начать', callback_data: 'start-chat' }]
             ]
         }
     }
 
-    let message: any = {
-        russian: `Самоучитель бурятского языка \n\nКаждое взаимодействие с ботом, \nвлияет на сохранение и дальнейшее развитие <b>Бурятского языка</b> \n\nВыберите раздел, чтобы приступить`,
-        buryat: `Буряд хэлэнэ заабари \n\nКаждое взаимодействие с ботом, \nвлияет на сохранение и дальнейшее развитие <b>Бурятского языка</b> \n\nЭхилхиин, нэгэ юумэ дарагты`,
-        english: `Buryat Language Tutorial \n\nEvery interaction with the bot affects the preservation and further development of the Buryat language \n\nChoose a section to start`,
-    }
-
     try {
-        
-        if (reply) {
-            return ctx.reply(message[ctx.scene.session.interface_ln], extra)
+
+        const user = await User.findOne({ id: ctx.from.id })
+
+        if (!user) {
+
+            let userdata: any = ctx.from
+            userdata.utm = ctx.scene.session.ref
+
+            await new User(ctx.from).save()
+
         }
 
-        // ctx.updateType === 'message' ? await ctx.reply(message, extra) : false
-        ctx.updateType === 'callback_query' ? await ctx.editMessageText(message[ctx.scene.session.interface_ln], extra) : ctx.reply(message[ctx.scene.session.interface_ln],extra)
+        if (reply) { return ctx.reply(message) }
+
+        ctx.updateType === 'callback_query' ? await ctx.editMessageText(message) : ctx.reply(message)
 
     } catch (err) {
-    
+
         console.log(err)
-    
+
     }
 }
 
 home.start(async (ctx: rlhubContext) => {
 
-    let ref_user: number = 0
-
+    let ref: string
     if (ctx.startPayload) {
 
-        ref_user = parseFloat(ctx.startPayload.replace('ref_', ''))
-        
+        ref = ctx.startPayload.replace('ref_', '')
+
+        console.log(ref)
+
     }
 
-    // await 
+    ctx.scene.session.ref = ref
 
     try {
 
-        let document: IUser | null = await User.findOne({
-            id: ctx.from?.id
-        })
-
-        if (!document) {
-
-            if (ctx.from) {
-
-                const user: IUser = {
-                    id: ctx.from.id,
-                    username: ctx.from.username,
-                    first_name: ctx.from.first_name,
-                    translations: [],
-                    voted_translations: [],
-                    rating: 0,
-                    is_bot: false,
-                    supported: 0,
-                    permissions: {
-                        admin: true,
-                        translation_moderator: true,
-                        sentences_moderator: true,
-                        dictionary_moderator: true
-                    },
-                }
-                await new User(user).save().catch(err => {
-                    console.log(err)
-                })
-                await greeting(ctx)
-            }
-
-        } else {
-            await greeting(ctx)
-        }
+        await greeting(ctx)
 
     } catch (err) {
         console.log(err)
     }
 });
 
-home.action("vocabular", async (ctx) => {
-    ctx.answerCbQuery()
-    return ctx.scene.enter('vocabular')
-})
-
-home.action("sentences", async (ctx) => {
-    return ctx.scene.enter('sentences')
-})
-
-home.action("translater", async (ctx) => {
-
-    let message: string = `<b>План по развитию Бурятского языка</b> \n\n`
-    message += `<a href="https://telegra.ph/Znachimost-Mashinnogo-Perevodchika-dlya-Buryatskogo-YAzyka-09-01">На данный момент отсутствует машинный переводчик с Бурятского языка, над чем мы и работаем</a>\n`
-
-    await ctx.editMessageText(message, { parse_mode: 'HTML', disable_web_page_preview: true })
-    await greeting(ctx, true)
-    return ctx.answerCbQuery('На стадии разработки 🎯')
-
-})
-
-home.action("study", async (ctx) => {
-    console.log('study')
-    return ctx.answerCbQuery('Программа обучения на стадии разработки 🎯')
-})
-
-home.action("moderation", async (ctx) => {
+home.on("message", async (ctx: rlhubContext) => {
     try {
 
-        if (ctx.updateType === 'callback_query') {
+        const user = await User.findOne({ id: ctx.from.id })
 
+        if (!user) { return false }
 
-            const user: IUser | null = await User.findOne({ id: ctx.from?.id })
+        if (user.access_questions == 0) {
 
-            if (user?.permissions?.admin || user?.permissions?.dictionary_moderator || user?.permissions?.sentences_moderator || user?.permissions?.translation_moderator) {
+            const response = await openai.chat.completions.create({
+                model: process.env.model,
+                temperature: .1,
+                messages: [
+                    { role: 'system', content: `Ответь пользователю, что у него не осталось бесплатных запросов, ему нужно подписать на канал https://t.me/bur_live` }
+                ]
+            })
 
-                ctx.answerCbQuery('Есть права!')
-                return ctx.scene.enter('moderation')
-                
-            } else {
-                
-                ctx.answerCbQuery('Недостаточно прав')
-                await ctx.editMessageText('Чтобы получить права модератора, напишите администратору @frntdev')
-                await delay(1500)
-                return await greeting(ctx, true)
+            const answer = response.choices[0].message.content
 
+            return await ctx.reply(answer, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: 'Проверить подписку', callback_data: 'checkMembership' }]
+                    ]
+                }
+            })
+
+        } else {
+
+            await User.findByIdAndUpdate(user._id, {
+                $inc: { access_questions: -1 }
+            });
+
+        }
+
+        const cards: {
+            majorArcana: string[]
+        } = {
+            "majorArcana": [
+                "Шут",
+                "Маг",
+                "Жрица",
+                "Императрица",
+                "Император",
+                "Жрец",
+                "Влюбленные",
+                "Колесница",
+                "Сила",
+                "Отшельник",
+                "Фортуна",
+                "Справедливость",
+                "Повешенный",
+                "Смерть",
+                "Умеренность",
+                "Дьявол",
+                "Башня",
+                "Звезда",
+                "Луна",
+                "Солнце",
+                "Суд",
+                "Мир"
+            ]
+        }
+
+        async function getRandomCards(cardsArray: string[], count: number) {
+            // Copy the array to avoid modifying the original
+            const shuffledArray = [...cardsArray];
+
+            // Fisher-Yates shuffle algorithm
+            for (let i = shuffledArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffledArray[i], shuffledArray[j]] = [shuffledArray[j], shuffledArray[i]];
             }
+
+            // Return the first 'count' elements
+            return shuffledArray.slice(0, count);
+        }
+
+        const list = await getRandomCards(cards.majorArcana, 3)
+
+        // Function to send typing status
+        const sendTypingStatus = async () => {
+            await ctx.sendChatAction('typing');
+        };
+
+        // Send initial typing status
+        await sendTypingStatus();
+
+        // Set interval to send typing status every 5 seconds
+        const typingInterval = setInterval(sendTypingStatus, 5000);
+
+        // Simulate some processing time
+        await new Promise(resolve => setTimeout(resolve, 20000));
+
+        // Clear the interval after 20 seconds (just for demonstration purposes)
+        clearInterval(typingInterval);
+        await ctx.reply(`Я раскладываю карты таро, чтобы помочь вам получить ответ на ваш вопрос. Ожидайте.`)
+        const response = await openai.chat.completions.create({
+            model: process.env.model,
+            temperature: .1,
+            messages: [
+                { role: 'system', content: `Представь, что ты знаменитый таролог. Сделай расклад Райдера Уэйта по картам ${list}. Интерпретируй все вопросы и ситуации на основе карт, сделай вывод в утвердительном характере с вероятностью. ${ctx.message.text}.` }
+            ]
+        })
+
+        await ctx.reply(response.choices[0].message.content)
+
+    } catch (error) {
+        console.log(error)
+    }
+})
+
+home.enter(async (ctx) => { return await greeting(ctx) })
+home.action("checkMembership", async (ctx) => {
+    try {
+
+        const isMember = await checkChannelMembership
+
+        const user = await User.findOne({ id: ctx.from.id })
+
+        if (!user) { return false }
+
+        if (isMember) {
+
+            await User.findByIdAndUpdate(user._id, {
+                $inc: { access_questions: 1 }
+            });
+
+            const response = await openai.chat.completions.create({
+                model: process.env.model,
+                temperature: .1,
+                messages: [
+                    { role: 'system', content: `Сообщи пользователю, что он успешно подписался на канал, и у него появился бесплатный вопрос на таро, и то что он может задать вопрос на предсказание` }
+                ]
+            })
+
+            const message = response.choices[0].message.content
+
+            await ctx.editMessageText(message)
 
         }
 
     } catch (error) {
-        console.error(error)
+        console.log(error)
     }
-
-    // ctx.answerCbQuery()
-    // return ctx.scene.enter('moderation')
 })
+async function checkChannelMembership(ctx: rlhubContext) {
+    const userId = ctx.from.id;
+    const channelId = '@YourChannelUsername'; // Replace with your channel username
 
-async function delay (ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms))
-}
+    try {
+        const chatMember = await bot.telegram.getChatMember(channelId, userId);
 
-home.action("chatgpt", async (ctx) => {
-    ctx.answerCbQuery()
-    return ctx.scene.enter('chatgpt')
-})
-
-home.action("dashboard", async (ctx) => {
-    await ctx.answerCbQuery('Личный кабинет')
-    return ctx.scene.enter('dashboard')
-})
-
-home.enter(async (ctx) => { return await greeting(ctx) })
-
-home.command('add_sentences', async (ctx) => {
-    await ctx.reply('Отправьте список предложений на русском которые хотите добавить в базу данных для их перевода в дальнейшем')
-    ctx.wizard.selectStep(1)
-})
-
-home.command("reset_activet", async (ctx) => {
-    await Sentence.updateMany({
-        active_translator: []
-    })
-})
-
-
-async function add_sentences_handler (ctx: rlhubContext) {
-
-    if (ctx.from) {
-        try {
-
-            if (ctx.updateType === 'callback_query') {
-                if (ctx.callbackQuery) {
-
-                    // @ts-ignore
-                    if (ctx.callbackQuery.data) {
-
-                        // @ts-ignore
-                        let data: 'send_sentences' | 'back' = ctx.callbackQuery.data
-
-                        // сохранение предложенных предложений
-                        if (data === 'send_sentences') {
-                            
-                            for (let i = 0; i < ctx.session.sentences.length; i++) {
-                            
-                                new Sentence({
-                                    text: ctx.session.sentences[i],
-                                    author: ctx.from.id,
-                                    accepted: 'not view',
-                                    translations: [],
-                                    skipped_by: []
-                                }).save().then(async (data) => {
-                                    let object_id = data._id
-
-                                    await User.findOneAndUpdate({ id: ctx.from?.id }, { $push: {
-                                        "proposedProposals": object_id
-                                    } })
-
-                                })
-
-                            }
-
-                            await ctx.answerCbQuery(`${ctx.session.sentences} отправлены на проверку, спасибо!`)
-                            ctx.wizard.selectStep(0)
-                            await greeting(ctx)
-                        }
-
-                        if (data === 'back') {
-                            ctx.wizard.selectStep(0)
-                            await ctx.answerCbQuery()
-                            return greeting(ctx)
-                        }
-                    }
-                 }
-
-            } else if (ctx.updateType === 'message') {
-
-                if (ctx.update.message.text) {
-
-                    let text: string = ctx.update.message.text
-
-                    const user: IUser | null = await User.findOne({ id: ctx.from.id })
-                    
-                    if (!user || !user._id) {
-                        return false
-                    }
-
-                    let sentence: ISentence = {
-                        text: text.toLocaleLowerCase(),
-                        author: user._id,
-                        accepted: 'not view',
-                        translations: [],
-                        skipped_by: [],
-                        active_translator: []
-                    }
-
-                    let message: string = ``
-
-                    if (sentence.text.indexOf('+;') !== -1) {
-                        let splitted = sentence.text.split('+;')
-                        let arr: string[] = []
-                        for (let i = 0; i < splitted.length; i++) {
-                            arr.push(splitted[i].trimEnd().trimStart())
-                        }
-
-                        ctx.session.sentences = arr
-
-                        for (let i = 0; i < splitted.length; i++) {
-                            message += `${i+1}) ${splitted[i].trimStart().trimEnd()}\n`
-                        }
-                    } else {
-                        ctx.session.sentences = [text]
-                        message += text
-                    }
-
-                    await ctx.reply(message, {
-                        parse_mode: 'HTML',
-                        reply_markup: {
-                            inline_keyboard: [
-                                [
-                                    {
-                                        text: 'Сохранить',
-                                        callback_data: 'send_sentences'
-                                    }
-                                ],
-                                [
-                                    {
-                                        text: 'Назад',
-                                        callback_data: 'back'
-                                    }
-                                ]
-                            ]
-                        }
-                    })
-
-                } else {
-                    await ctx.reply("Нужно отправить в текстовом виде")
-                }
-
-            }
-
-        } catch (err) {
-            ctx.wizard.selectStep(0)
-            await greeting(ctx)
+        if (chatMember.status === 'member' || chatMember.status === 'administrator' || chatMember.status === 'creator') {
+            return true; // User is a member of the channel
+        } else {
+            return false; // User is not a member of the channel
         }
+    } catch (error) {
+        console.error(error);
+        throw new Error('Error checking channel membership. Please try again later.');
     }
-    
 }
 
-// home.on("message", async (ctx) => await greeting (ctx))
-home.action(/\./, async (ctx) => {
-    
-    console.log(ctx)
-    await greeting(ctx)
-
-})
 export default home
-export { add_sentences_handler }

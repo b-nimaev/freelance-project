@@ -17,7 +17,7 @@ COPY . ./
 RUN npx tsc --p 'tsconfig.json'
 
 # Указание порта, который будет слушать приложение
-EXPOSE 5000
+EXPOSE 3000
 
 # Запуск приложения
 CMD [ "node", "dist/index.js" ]

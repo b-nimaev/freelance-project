@@ -2,11 +2,10 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 dotenv.config()
 
-const url = process.env.database
+const url = process.env.mongodb
 
 ;(async () => {
     await mongoose.connect(url, {
-        dbName: 'burlang',
         useNewUrlParser: true,
         useUnifiedTopology: true,
     } as any).catch(error => { console.error(error) });
